@@ -8,6 +8,7 @@ Synthetic-data portfolio project for a UK Personal Investor (UKPI) retail-invest
 - Segment-level offer analysis for ISA reminders, SIPP contribution reminders, cash-to-invest education, and managed-service education.
 - Chart-first reporting using a colourblind-safe journal-style palette rather than a single blue colour.
 - A dynamic HTML customer dashboard where selecting a customer changes the segment, needs, recommended communication route, and comparison charts.
+- A safety check that verifies the HTML dashboard embeds the current figures from `outputs/figures` by MD5 hash, so stale blue figures are not silently packaged.
 - A safe boundary: outputs are communication and education analytics, not fund recommendations, suitability decisions, or regulated financial advice.
 
 ## Run locally
@@ -17,16 +18,20 @@ pip install -r requirements.txt
 python ukpi_analytics_demo.py
 ```
 
-The script creates:
+The script recreates outputs from scratch and creates:
 
 ```text
-outputs/figures/
-outputs/tables/
+outputs/figures/01_segment_size_journal_palette.png
+outputs/figures/02_segment_need_map.png
+outputs/figures/03_recommended_offer_lift.png
+outputs/figures/04_offer_uplift_heatmap.png
+outputs/figures/05_treatment_control_conversion.png
+outputs/figures/06_segment_profile_comparison.png
 outputs/ukpi_dashboard.html
+outputs/customer_dashboard.html
+docs/index.html
 reports/analysis_report.md
 ```
-
-The GitHub Actions workflow runs the same script and checks that figures, tables, dashboard, and report are created.
 
 ## Why it matches the role
 

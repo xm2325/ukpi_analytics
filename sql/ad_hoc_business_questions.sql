@@ -1,5 +1,7 @@
 -- Ad hoc business questions for the UKPI synthetic analytics mart.
--- These are examples of questions a stakeholder might ask.
+-- Run after python ukpi_analytics_demo.py using:
+-- python scripts/run_sql_checks.py
+-- The runner loads the generated CSV outputs into an in-memory SQLite database.
 
 -- 1. Which segments have the highest cash ratio?
 SELECT

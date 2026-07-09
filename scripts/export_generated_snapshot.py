@@ -8,45 +8,53 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parents[1]
 SNAPSHOT = ROOT / "data" / "generated_snapshot"
 TABLE_DIR = ROOT / "outputs" / "tables"
-REPORT_DIR = ROOT / "reports"
-SNAPSHOT.mkdir(parents=True, exist_ok=True)
 
-FILES_TO_COPY = [
+REQUIRED_FILES = [
     TABLE_DIR / "customer_segments.csv",
     TABLE_DIR / "campaign_events_with_segments.csv",
     TABLE_DIR / "segment_profile_summary.csv",
     TABLE_DIR / "offer_uplift_by_segment.csv",
     TABLE_DIR / "segment_offer_recommendations.csv",
+]
+
+OPTIONAL_FILES = [
     TABLE_DIR / "executive_metrics.csv",
     TABLE_DIR / "cluster_selection_scores.csv",
 ]
 
 
+def copy_csv(src: Path, dst: Path) -> dict[str, object]:
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(src, dst)
+    return {
+        "path": str(dst.relative_to(ROOT)),
+        "rows": len(pd.read_csv(dst)),
+        "size_bytes": dst.stat().st_size,
+    }
+
+
 def main() -> None:
+    if SNAPSHOT.exists():
+        shutil.rmtree(SNAPSHOT)
+    SNAPSHOT.mkdir(parents=True, exist_ok=True)
+
     rows = []
-    for src in FILES_TO_COPY:
+    for src in REQUIRED_FILES:
         if not src.exists():
-            raise FileNotFoundError(f"Missing generated table: {src}")
-        dst = SNAPSHOT / src.name
-        shutil.copy2(src, dst)
-        rows.append({
-            "path": str(dst.relative_to(ROOT)),
-            "rows": len(pd.read_csv(dst)),
-            "size_bytes": dst.stat().st_size,
-        })
+            raise FileNotFoundError(f"Missing required generated table: {src}. Run python ukpi_analytics_demo.py first.")
+        rows.append(copy_csv(src, SNAPSHOT / src.name))
+
+    for src in OPTIONAL_FILES:
+        if src.exists():
+            rows.append(copy_csv(src, SNAPSHOT / src.name))
 
     sql_dir = TABLE_DIR / "sql_checks"
-    if sql_dir.exists():
-        out_sql = SNAPSHOT / "sql_checks"
-        out_sql.mkdir(exist_ok=True)
-        for src in sorted(sql_dir.glob("*.csv")):
-            dst = out_sql / src.name
-            shutil.copy2(src, dst)
-            rows.append({
-                "path": str(dst.relative_to(ROOT)),
-                "rows": len(pd.read_csv(dst)),
-                "size_bytes": dst.stat().st_size,
-            })
+    if not sql_dir.exists():
+        raise FileNotFoundError(f"Missing SQL output directory: {sql_dir}. Run python scripts/run_sql_checks.py first.")
+
+    out_sql = SNAPSHOT / "sql_checks"
+    for src in sorted(sql_dir.glob("*.csv")):
+        rows.append(copy_csv(src, out_sql / src.name))
 
     manifest = pd.DataFrame(rows).sort_values("path")
     manifest.to_csv(SNAPSHOT / "snapshot_manifest.csv", index=False)

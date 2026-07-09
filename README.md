@@ -34,6 +34,7 @@ chart-first dashboard
 ```bash
 pip install -r requirements.txt
 python ukpi_analytics_demo.py
+python scripts/run_sql_checks.py
 ```
 
 The compact GitHub version recreates the outputs from scratch:
@@ -49,6 +50,7 @@ outputs/ukpi_dashboard.html
 outputs/customer_dashboard.html
 docs/index.html
 reports/analysis_report.md
+reports/sql_check_report.md
 ```
 
 ## Main result
@@ -63,15 +65,18 @@ The synthetic book separates into five customer groups:
 
 The recommended action is not to recommend products. The safer action is to route customers to neutral education, ISA or SIPP reminders, and service information based on segment-level evidence.
 
-## Notes added for review
+## Repository map
 
-I added a few plain project notes so the repo is easier to discuss in an interview:
-
-- `docs/project_story.md`: why I built it and how the pieces fit together;
-- `docs/data_dictionary.md`: field meanings and why the fields were used;
-- `docs/interview_talk_track.md`: 60-second and 3-minute explanations;
-- `docs/known_limits.md`: what I would not claim from this demo;
-- `sql/ad_hoc_business_questions.sql`: stakeholder-style SQL questions.
+```text
+ukpi_analytics_demo.py          main Python workflow
+scripts/run_sql_checks.py       loads generated CSV outputs into SQLite and runs the SQL checks
+sql/ad_hoc_business_questions.sql
+                                stakeholder-style SQL questions
+docs/project_story.md           short project notes
+docs/data_dictionary.md         field meanings
+docs/known_limits.md            things I would not claim from this demo
+docs/interview_talk_track.md    optional notes for explaining the project
+```
 
 ## Safety note
 

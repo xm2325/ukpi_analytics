@@ -29,7 +29,8 @@ jobs:
           test -f outputs/tables/segment_profile_summary.csv
           test -f outputs/tables/offer_uplift_by_segment.csv
           test -f outputs/tables/segment_offer_recommendations.csv
-          test -f outputs/tables/sql_checks/query_01_select_segment_count_as_n_customers.csv
+          test -d outputs/tables/sql_checks
+          test $(find outputs/tables/sql_checks -name '*.csv' | wc -l) -ge 6
           test -f reports/sql_check_report.md
           test -f outputs/figures/01_segment_size_journal_palette.png
           test -f outputs/figures/02_segment_need_map.png

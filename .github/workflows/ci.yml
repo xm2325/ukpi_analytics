@@ -22,11 +22,15 @@ jobs:
           test -f sql/ad_hoc_business_questions.sql
       - name: Run demo
         run: python ukpi_analytics_demo.py
+      - name: Run SQL checks against generated synthetic outputs
+        run: python scripts/run_sql_checks.py
       - name: Check outputs and stale-blue prevention
         run: |
           test -f outputs/tables/segment_profile_summary.csv
           test -f outputs/tables/offer_uplift_by_segment.csv
           test -f outputs/tables/segment_offer_recommendations.csv
+          test -f outputs/tables/sql_checks/query_01_select_segment_count_as_n_customers.csv
+          test -f reports/sql_check_report.md
           test -f outputs/figures/01_segment_size_journal_palette.png
           test -f outputs/figures/02_segment_need_map.png
           test -f outputs/figures/03_recommended_offer_lift.png

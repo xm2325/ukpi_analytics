@@ -13,6 +13,13 @@ jobs:
           python-version: '3.11'
       - name: Install dependencies
         run: pip install -r requirements.txt
+      - name: Check project notes
+        run: |
+          test -f docs/project_story.md
+          test -f docs/data_dictionary.md
+          test -f docs/interview_talk_track.md
+          test -f docs/known_limits.md
+          test -f sql/ad_hoc_business_questions.sql
       - name: Run demo
         run: python ukpi_analytics_demo.py
       - name: Check outputs and stale-blue prevention

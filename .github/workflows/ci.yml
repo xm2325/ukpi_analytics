@@ -1,0 +1,25 @@
+name: run-ukpi-demo
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+jobs:
+  run-demo:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Run demo
+        run: python ukpi_analytics_demo.py
+      - name: Check outputs
+        run: |
+          test -f outputs/tables/segment_profile_summary.csv
+          test -f outputs/tables/offer_uplift_by_segment.csv
+          test -f outputs/tables/segment_offer_recommendations.csv
+          test -f outputs/ukpi_dashboard.html
+          test -f reports/analysis_report.md
+          test $(find outputs/figures -name '*.png' | wc -l) -ge 4

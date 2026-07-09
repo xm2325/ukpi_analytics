@@ -1,15 +1,33 @@
 # UKPI Client Segmentation and Offer Analytics
 
-Synthetic-data portfolio project for a UK Personal Investor (UKPI) retail-investment analytics role. The project shows how SQL/Python-style data work can support client segmentation, offer analysis, dashboard reporting, and customer-level service design without making personal investment advice.
+I built this as a small portfolio project for a UK retail investment platform data analyst role. The point is simple: take customer, account, holding, transaction, web/app, and campaign data, build one customer-level view, then use it for segmentation, offer analysis, and dashboard reporting.
 
-## What this project demonstrates
+The data are synthetic. They are not Vanguard data and not real customer data.
 
-- Five customer segments based on assets, cash ratio, pension/ISA ownership, contribution behaviour, and digital engagement.
-- Segment-level offer analysis for ISA reminders, SIPP contribution reminders, cash-to-invest education, and managed-service education.
-- Chart-first reporting using a colourblind-safe journal-style palette rather than a single blue colour.
-- A dynamic HTML customer dashboard where selecting a customer changes the segment, needs, recommended communication route, and comparison charts.
-- A safety check that verifies the HTML dashboard embeds the current figures from `outputs/figures` by MD5 hash, so stale blue figures are not silently packaged.
-- A safe boundary: outputs are communication and education analytics, not fund recommendations, suitability decisions, or regulated financial advice.
+## What I wanted to check
+
+A UK personal investor platform should not treat all customers as one group. Some customers hold a lot of cash, some are building pensions, some invest monthly, some are active online, and some barely use the platform. I wanted the project to answer four practical questions:
+
+1. What customer groups appear in the data?
+2. Which education or reminder route fits each group better?
+3. What should a stakeholder dashboard show first?
+4. How can the analysis support service design without becoming personal investment advice?
+
+## Project flow
+
+```text
+raw synthetic tables
+  customers, accounts, holdings, transactions, web_events, campaign_events
+        ↓
+customer feature mart
+  one row per customer
+        ↓
+segmentation and offer analysis
+  five customer groups + treatment/control offer lift
+        ↓
+chart-first dashboard
+  business answer, figures, customer selector, safe wording
+```
 
 ## Run locally
 
@@ -18,7 +36,7 @@ pip install -r requirements.txt
 python ukpi_analytics_demo.py
 ```
 
-The script recreates outputs from scratch and creates:
+The compact GitHub version recreates the outputs from scratch:
 
 ```text
 outputs/figures/01_segment_size_journal_palette.png
@@ -33,8 +51,28 @@ docs/index.html
 reports/analysis_report.md
 ```
 
-## Why it matches the role
+## Main result
 
-The project mirrors a UKPI data analyst workflow: generate and clean customer-level data, build an analytics feature table, create business-ready segments, test campaign uplift, produce visual dashboards, and explain results to technical and non-technical stakeholders.
+The synthetic book separates into five customer groups:
 
-All data are synthetic. No Vanguard data or real customer data are used.
+- high-value engaged investors;
+- cash-heavy cautious investors;
+- emerging monthly investors;
+- pension builders approaching retirement;
+- low-engagement or dormant investors.
+
+The recommended action is not to recommend products. The safer action is to route customers to neutral education, ISA or SIPP reminders, and service information based on segment-level evidence.
+
+## Notes added for review
+
+I added a few plain project notes so the repo is easier to discuss in an interview:
+
+- `docs/project_story.md`: why I built it and how the pieces fit together;
+- `docs/data_dictionary.md`: field meanings and why the fields were used;
+- `docs/interview_talk_track.md`: 60-second and 3-minute explanations;
+- `docs/known_limits.md`: what I would not claim from this demo;
+- `sql/ad_hoc_business_questions.sql`: stakeholder-style SQL questions.
+
+## Safety note
+
+This project does not recommend a fund, portfolio, risk level, or personal investment action. It is a service analytics and dashboard project using synthetic data.

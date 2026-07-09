@@ -26,6 +26,8 @@ outputs/ukpi_dashboard.html
 reports/analysis_report.md
 ```
 
+The GitHub Actions workflow runs the same script and checks that figures, tables, dashboard, and report are created.
+
 ## Why it matches the role
 
 The project mirrors a UKPI data analyst workflow: generate and clean customer-level data, build an analytics feature table, create business-ready segments, test campaign uplift, produce visual dashboards, and explain results to technical and non-technical stakeholders.

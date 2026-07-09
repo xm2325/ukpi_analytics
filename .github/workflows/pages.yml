@@ -1,0 +1,33 @@
+name: deploy-dashboard-pages
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/ukpi_dashboard.html'
+      - 'docs/.nojekyll'
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: true
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}ukpi_dashboard.html
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check dashboard file
+        run: |
+          test -f docs/ukpi_dashboard.html
+          grep -q "UKPI Client Segmentation and Offer Analytics" docs/ukpi_dashboard.html
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+      - id: deployment
+        uses: actions/deploy-pages@v4

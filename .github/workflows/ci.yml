@@ -23,6 +23,10 @@ jobs:
           test -f sql/ad_hoc_business_questions.sql
       - name: Run demo
         run: python ukpi_analytics_demo.py
+      - name: Prepare GitHub Pages dashboard file
+        run: |
+          mkdir -p docs
+          cp outputs/ukpi_dashboard.html docs/ukpi_dashboard.html
       - name: Run SQL checks against generated synthetic outputs
         run: python scripts/run_sql_checks.py
       - name: Export generated snapshot into repository folder
@@ -48,19 +52,19 @@ jobs:
           test ! -f outputs/figures/01_segment_size.png
           test -f outputs/ukpi_dashboard.html
           test -f outputs/customer_dashboard.html
-          test -f docs/index.html
+          test -f docs/ukpi_dashboard.html
           test -f reports/analysis_report.md
           grep -q "journal-palette" reports/analysis_report.md
-          grep -q "#D55E00" outputs/ukpi_dashboard.html
-          grep -q "#009E73" outputs/ukpi_dashboard.html
-          grep -q "#CC79A7" outputs/ukpi_dashboard.html
-      - name: Commit generated snapshot and outputs
+          grep -q "#D55E00" docs/ukpi_dashboard.html
+          grep -q "#009E73" docs/ukpi_dashboard.html
+          grep -q "#CC79A7" docs/ukpi_dashboard.html
+      - name: Commit generated snapshot and dashboard
         if: github.event_name != 'pull_request'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data/generated_snapshot outputs reports docs/index.html
-          git diff --cached --quiet || git commit -m "Update generated UKPI snapshot [skip ci]"
+          git add data/generated_snapshot outputs reports docs/ukpi_dashboard.html
+          git diff --cached --quiet || git commit -m "Update generated UKPI snapshot and dashboard [skip ci]"
           git push || true
       - name: Upload generated dashboard bundle
         uses: actions/upload-artifact@v4
@@ -68,10 +72,10 @@ jobs:
           name: ukpi-generated-dashboard-and-sql-results
           path: |
             data/generated_snapshot/**
+            docs/ukpi_dashboard.html
             outputs/ukpi_dashboard.html
             outputs/customer_dashboard.html
             outputs/figures/*.png
             outputs/tables/*.csv
             outputs/tables/sql_checks/*.csv
             reports/*.md
-            docs/index.html

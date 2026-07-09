@@ -1,0 +1,12 @@
+path,rows,size_bytes
+data/generated_snapshot/campaign_events_with_segments.csv,5015,383750
+data/generated_snapshot/customer_segments.csv,2500,373340
+data/generated_snapshot/offer_uplift_by_segment.csv,20,2395
+data/generated_snapshot/segment_offer_recommendations.csv,5,1124
+data/generated_snapshot/segment_profile_summary.csv,5,958
+data/generated_snapshot/sql_checks/query_01_select_segment_count_as_n_customers_avg.csv,5,416
+data/generated_snapshot/sql_checks/query_02_select_customer_id_segment_aum_cash_ratio_active_days_6m.csv,1,131
+data/generated_snapshot/sql_checks/query_03_with_ranked_as_select_segment_offer_type.csv,5,668
+data/generated_snapshot/sql_checks/query_04_select_customer_id_segment_aum_cash_balance_cash_ratio.csv,100,8373
+data/generated_snapshot/sql_checks/query_05_select_customer_id_segment_age_aum_contribution_18m.csv,6,495
+data/generated_snapshot/sql_checks/query_06_select_offer_type_assigned_group_count_as_n_events.csv,8,516

@@ -1,0 +1,6 @@
+segment,recommended_offer,expected_absolute_lift,reason,safe_business_message
+Cash-heavy cautious investors,CASH_TO_INVEST_EDUCATION,0.25127818288492165,high cash or education fit,"Give customers with high cash balances educational content on risk, time horizon, and investment options."
+Pension builders approaching retirement,MANAGED_SERVICE_EDUCATION,0.14285714285714285,segment-specific conversion lift,Explain managed service features without recommending a product as personal advice.
+High-value engaged investors,CASH_TO_INVEST_EDUCATION,0.12368421052631579,high cash or education fit,"Give customers with high cash balances educational content on risk, time horizon, and investment options."
+Emerging monthly investors,CASH_TO_INVEST_EDUCATION,0.11658894070619585,high cash or education fit,"Give customers with high cash balances educational content on risk, time horizon, and investment options."
+Low-engagement or dormant investors,ISA_ALLOWANCE_REMINDER,0.11194029850746269,segment-specific conversion lift,Remind eligible ISA holders about contribution deadlines and provide neutral education on allowance use.

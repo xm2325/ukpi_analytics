@@ -46,3 +46,15 @@ jobs:
           grep -q "#D55E00" outputs/ukpi_dashboard.html
           grep -q "#009E73" outputs/ukpi_dashboard.html
           grep -q "#CC79A7" outputs/ukpi_dashboard.html
+      - name: Upload generated dashboard bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: ukpi-generated-dashboard-and-sql-results
+          path: |
+            outputs/ukpi_dashboard.html
+            outputs/customer_dashboard.html
+            outputs/figures/*.png
+            outputs/tables/*.csv
+            outputs/tables/sql_checks/*.csv
+            reports/*.md
+            docs/index.html

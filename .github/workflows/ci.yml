@@ -15,11 +15,23 @@ jobs:
         run: pip install -r requirements.txt
       - name: Run demo
         run: python ukpi_analytics_demo.py
-      - name: Check outputs
+      - name: Check outputs and stale-blue prevention
         run: |
           test -f outputs/tables/segment_profile_summary.csv
           test -f outputs/tables/offer_uplift_by_segment.csv
           test -f outputs/tables/segment_offer_recommendations.csv
+          test -f outputs/figures/01_segment_size_journal_palette.png
+          test -f outputs/figures/02_segment_need_map.png
+          test -f outputs/figures/03_recommended_offer_lift.png
+          test -f outputs/figures/04_offer_uplift_heatmap.png
+          test -f outputs/figures/05_treatment_control_conversion.png
+          test -f outputs/figures/06_segment_profile_comparison.png
+          test ! -f outputs/figures/01_segment_size.png
           test -f outputs/ukpi_dashboard.html
+          test -f outputs/customer_dashboard.html
+          test -f docs/index.html
           test -f reports/analysis_report.md
-          test $(find outputs/figures -name '*.png' | wc -l) -ge 4
+          grep -q "journal-palette" reports/analysis_report.md
+          grep -q "#D55E00" outputs/ukpi_dashboard.html
+          grep -q "#009E73" outputs/ukpi_dashboard.html
+          grep -q "#CC79A7" outputs/ukpi_dashboard.html

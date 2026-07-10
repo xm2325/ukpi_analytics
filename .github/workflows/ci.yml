@@ -82,8 +82,13 @@ jobs:
           test -f docs/ukpi_dashboard.html
           test -f docs/guided_dashboard.html
           test -f docs/index.html
-          grep -q "95% interval" docs/guided_dashboard.html
-          grep -q "Automated checks" docs/guided_dashboard.html
+          test $(stat -c%s docs/guided_dashboard.html) -gt 100000
+          test $(stat -c%s docs/index.html) -gt 100000
+          cmp docs/guided_dashboard.html docs/index.html
+          grep -q "Evidence-led v2.2" docs/index.html
+          grep -q "Why retain five segments" docs/index.html
+          grep -q "95% interval" docs/index.html
+          grep -q "Automated checks" docs/index.html
           grep -q "What I would and would not claim" docs/index.html
       - name: Commit generated snapshot and dashboards
         if: github.event_name != 'pull_request'

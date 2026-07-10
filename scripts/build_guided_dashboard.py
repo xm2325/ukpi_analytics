@@ -14,6 +14,7 @@ DOCS.mkdir(exist_ok=True)
 
 GUIDED_PATH = DOCS / "guided_dashboard.html"
 INDEX_PATH = DOCS / "index.html"
+DASHBOARD_VERSION = "Evidence-led v2.2"
 
 
 def img_data_uri(path: Path) -> str:
@@ -48,6 +49,8 @@ def main() -> None:
     profile = pd.read_csv(TABLES / "segment_profile_summary.csv")
     evidence = pd.read_csv(TABLES / "offer_uplift_with_uncertainty.csv")
     quality = pd.read_csv(TABLES / "data_quality_summary.csv")
+    diagnostics = pd.read_csv(TABLES / "cluster_diagnostics.csv")
+    stability = pd.read_csv(TABLES / "segment_stability.csv")
 
     require_columns(segments, "customer_segments.csv", ["segment", "customer_id"])
     require_columns(
@@ -72,6 +75,8 @@ def main() -> None:
         ],
     )
     require_columns(quality, "data_quality_summary.csv", ["metric", "value", "unit", "status"])
+    require_columns(diagnostics, "cluster_diagnostics.csv", ["n_clusters", "silhouette_score", "inertia", "selected"])
+    require_columns(stability, "segment_stability.csv", ["comparison_seed", "adjusted_rand_index"])
 
     n_customers = len(segments)
     n_segments = int(segments["segment"].nunique())
@@ -80,6 +85,11 @@ def main() -> None:
     best_lower = float(best["ci_95_lower"])
     best_upper = float(best["ci_95_upper"])
     review_checks = int((quality["status"] != "PASS").sum())
+
+    selected_k = diagnostics.loc[diagnostics["selected"].astype(bool)].iloc[0]
+    best_silhouette = diagnostics.sort_values("silhouette_score", ascending=False).iloc[0]
+    mean_ari = float(stability["adjusted_rand_index"].mean())
+    min_ari = float(stability["adjusted_rand_index"].min())
 
     segment_size = (
         segments["segment"]
@@ -138,6 +148,25 @@ def main() -> None:
         columns={"metric": "Check", "value": "Result", "status": "Status"}
     )
 
+    diagnostics_display = diagnostics.copy()
+    diagnostics_display["silhouette_score"] = diagnostics_display["silhouette_score"].map(lambda x: f"{x:.3f}")
+    diagnostics_display["inertia"] = diagnostics_display["inertia"].map(lambda x: f"{x:,.0f}")
+    diagnostics_display["selected"] = diagnostics_display["selected"].map(lambda x: "Selected" if bool(x) else "")
+    diagnostics_display = diagnostics_display.rename(
+        columns={
+            "n_clusters": "k",
+            "silhouette_score": "Silhouette",
+            "inertia": "Inertia",
+            "selected": "Decision",
+        }
+    )
+
+    stability_display = stability.copy()
+    stability_display["adjusted_rand_index"] = stability_display["adjusted_rand_index"].map(lambda x: f"{x:.3f}")
+    stability_display = stability_display[["comparison_seed", "adjusted_rand_index"]].rename(
+        columns={"comparison_seed": "Alternative seed", "adjusted_rand_index": "Adjusted Rand index"}
+    )
+
     fig_map = {
         "Segment size": FIGS / "01_segment_size_journal_palette.png",
         "Need map": FIGS / "02_segment_need_map.png",
@@ -146,6 +175,7 @@ def main() -> None:
         "Treatment-control conversion": FIGS / "05_treatment_control_conversion.png",
         "Segment profile comparison": FIGS / "06_segment_profile_comparison.png",
         "Offer uncertainty": FIGS / "07_recommended_offer_uncertainty.png",
+        "Cluster diagnostic": FIGS / "08_cluster_count_diagnostic.png",
     }
     missing_figures = [str(path) for path in fig_map.values() if not path.exists()]
     if missing_figures:
@@ -156,6 +186,7 @@ def main() -> None:
     *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:Arial,Helvetica,sans-serif;line-height:1.55}
     header{background:#fff;border-bottom:1px solid var(--line);padding:34px 44px 24px}main{max-width:1180px;margin:auto;padding:24px}
     h1{margin:0 0 8px;font-size:30px}h2{margin:0 0 12px;font-size:22px}h3{margin:8px 0;font-size:17px}.subtitle{color:var(--muted);max-width:920px}
+    .version{display:inline-block;margin-top:10px;padding:4px 9px;border-radius:999px;background:#111827;color:#fff;font-size:12px;font-weight:700}
     .card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:20px;margin:18px 0;box-shadow:0 1px 2px rgba(0,0,0,.035)}
     .answer{border-left:6px solid var(--blue)}.safe{border-left:6px solid var(--green);background:#F0FDF4}.warn{border-left:6px solid var(--orange);background:#FFF7ED}
     .grid4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}
@@ -165,7 +196,7 @@ def main() -> None:
     figure{margin:0}.chart{width:100%;border:1px solid var(--line);border-radius:12px;background:white;padding:10px}.chart img{width:100%;display:block}
     .explain{background:#F9FAFB;border:1px solid var(--line);border-radius:12px;padding:14px}.explain ul{margin:8px 0 0 20px;padding:0}.explain li{margin:5px 0}
     .mini{width:100%;border-collapse:collapse;font-size:12.5px}.mini th,.mini td{border-bottom:1px solid var(--line);padding:7px;text-align:left;vertical-align:top}.mini th{background:#F9FAFB;position:sticky;top:0}
-    .table-wrap{overflow-x:auto}.muted{color:var(--muted)}.good{color:#047857;font-weight:700}.review{color:#B45309;font-weight:700}
+    .table-wrap{overflow-x:auto}.muted{color:var(--muted)}.callout{background:#FFF7ED;border-left:5px solid var(--orange);padding:12px 14px;border-radius:8px}
     @media(max-width:900px){.grid2,.grid4,.flow{grid-template-columns:1fr}header{padding:28px 22px}main{padding:16px}}
     """
 
@@ -181,6 +212,7 @@ def main() -> None:
 <header>
   <h1>UKPI client segmentation and offer analytics</h1>
   <p class="subtitle">Synthetic-data portfolio dashboard. The page moves from the business question to the evidence, uncertainty, operational interpretation, and limits.</p>
+  <span class="version">{DASHBOARD_VERSION}</span>
 </header>
 <main>
   <section class="card answer">
@@ -192,8 +224,8 @@ def main() -> None:
 
   <section class="grid4">
     <div class="kpi"><div class="label">Synthetic customers</div><div class="value">{n_customers:,}</div><div class="subvalue">One customer-level feature mart</div></div>
-    <div class="kpi"><div class="label">Segments</div><div class="value">{n_segments}</div><div class="subvalue">Interpretable service groups</div></div>
-    <div class="kpi"><div class="label">Segment-offer tests</div><div class="value">{len(evidence)}</div><div class="subvalue">Treatment-control comparisons</div></div>
+    <div class="kpi"><div class="label">Segments retained</div><div class="value">{n_segments}</div><div class="subvalue">Interpretability trade-off</div></div>
+    <div class="kpi"><div class="label">Mean stability ARI</div><div class="value">{mean_ari:.3f}</div><div class="subvalue">Minimum {min_ari:.3f} across five seeds</div></div>
     <div class="kpi"><div class="label">Quality checks needing review</div><div class="value">{review_checks}</div><div class="subvalue">Out of {len(quality)} automated checks</div></div>
   </section>
 
@@ -201,9 +233,26 @@ def main() -> None:
     <span class="step">Decision path</span>
     <div class="flow">
       <div><b>1. Who is in the book?</b>Size and profile the customer segments.</div>
-      <div><b>2. What differs?</b>Compare cash, activity, account ownership, and contribution behaviour.</div>
+      <div><b>2. Why five groups?</b>Compare cluster separation and multi-seed stability.</div>
       <div><b>3. What appears to work?</b>Estimate treatment-control uplift by segment and route.</div>
       <div><b>4. How certain is it?</b>Show sample sizes, uncertainty intervals, quality checks, and limits.</div>
+    </div>
+  </section>
+
+  <section class="card">
+    <span class="step">Model choice</span><h2>Why retain five segments?</h2>
+    <div class="grid2">
+      <figure class="chart"><img alt="Cluster-count diagnostic" src="{img_data_uri(fig_map['Cluster diagnostic'])}"></figure>
+      <div class="explain">
+        <h3>Honest interpretation</h3>
+        <p>The highest silhouette score is at <b>k={int(best_silhouette['n_clusters'])}</b> ({float(best_silhouette['silhouette_score']):.3f}), while the retained five-cluster solution has a lower score of <b>{float(selected_k['silhouette_score']):.3f}</b>.</p>
+        <p class="callout"><b>Therefore k=5 is not presented as mathematically optimal.</b> It is retained as a business-facing trade-off: more useful service groups than k=2, while remaining highly stable across alternative random seeds.</p>
+        <p>Mean adjusted Rand index: <b>{mean_ari:.3f}</b>; minimum: <b>{min_ari:.3f}</b>.</p>
+      </div>
+    </div>
+    <div class="grid2">
+      <div class="table-wrap">{table_html(diagnostics_display)}</div>
+      <div class="table-wrap">{table_html(stability_display)}</div>
     </div>
   </section>
 
@@ -260,7 +309,7 @@ def main() -> None:
     <span class="step">7</span><h2>Do the segment names match measurable profiles?</h2>
     <div class="grid2">
       <figure class="chart"><img alt="Segment profile comparison" src="{img_data_uri(fig_map['Segment profile comparison'])}"></figure>
-      <div class="explain"><h3>Interpretation</h3><ul><li>Profile measures anchor the segment names in observed synthetic features.</li><li>This guards against labels that sound plausible but are not supported by the data.</li><li>A production version would also test stability across time and alternative clustering seeds.</li></ul></div>
+      <div class="explain"><h3>Interpretation</h3><ul><li>Profile measures anchor the segment names in observed synthetic features.</li><li>This guards against labels that sound plausible but are not supported by the data.</li><li>A production version would also test stability across time, not only across random seeds.</li></ul></div>
     </div>
   </section>
 
@@ -272,13 +321,13 @@ def main() -> None:
 
   <section class="card safe">
     <span class="step">Boundary</span><h2>What I would and would not claim</h2>
-    <p><b>I would claim:</b> the repository demonstrates a reproducible workflow connecting synthetic customer data, segmentation, campaign comparisons, uncertainty, SQL checks, automated validation, and stakeholder reporting.</p>
-    <p><b>I would not claim:</b> that the simulated uplift represents real customer behaviour, that the segments establish suitability, or that the dashboard gives regulated financial advice.</p>
+    <p><b>I would claim:</b> the repository demonstrates a reproducible workflow connecting synthetic customer data, segmentation diagnostics, campaign comparisons, uncertainty, SQL checks, automated validation, and stakeholder reporting.</p>
+    <p><b>I would not claim:</b> that the simulated uplift represents real customer behaviour, that k=5 is uniquely optimal, that the segments establish suitability, or that the dashboard gives regulated financial advice.</p>
   </section>
 
   <section class="card warn">
     <span class="step">Production upgrades</span><h2>What I would add with real data</h2>
-    <p>Time-based segment stability, pre-treatment balance, confidence intervals with robust experimental design, multiple-testing adjustment, dashboard freshness monitoring, privacy controls, and documented human approval before campaign use.</p>
+    <p>Time-based segment stability, pre-treatment balance, multiple-testing adjustment, robust experimental design, dashboard freshness monitoring, privacy controls, and documented human approval before campaign use.</p>
   </section>
 </main>
 </body>

@@ -12,7 +12,8 @@ FIGS = OUT / "figures"
 DOCS = ROOT / "docs"
 DOCS.mkdir(exist_ok=True)
 
-DASHBOARD_PATH = DOCS / "guided_dashboard.html"
+GUIDED_PATH = DOCS / "guided_dashboard.html"
+INDEX_PATH = DOCS / "index.html"
 
 
 def img_data_uri(path: Path) -> str:
@@ -28,10 +29,6 @@ def pp(x: float) -> str:
     return f"{100 * x:.1f} pp"
 
 
-def top_rows_html(df: pd.DataFrame, n: int = 5) -> str:
-    return df.head(n).to_html(index=False, classes="mini", border=0)
-
-
 def require_columns(df: pd.DataFrame, table_name: str, columns: list[str]) -> None:
     missing = [column for column in columns if column not in df.columns]
     if missing:
@@ -41,60 +38,104 @@ def require_columns(df: pd.DataFrame, table_name: str, columns: list[str]) -> No
         )
 
 
+def table_html(df: pd.DataFrame, n: int | None = None) -> str:
+    shown = df.head(n) if n is not None else df
+    return shown.to_html(index=False, classes="mini", border=0, escape=True)
+
+
 def main() -> None:
     segments = pd.read_csv(TABLES / "customer_segments.csv")
-    recs = pd.read_csv(TABLES / "segment_offer_recommendations.csv")
-    uplift = pd.read_csv(TABLES / "offer_uplift_by_segment.csv")
     profile = pd.read_csv(TABLES / "segment_profile_summary.csv")
+    evidence = pd.read_csv(TABLES / "offer_uplift_with_uncertainty.csv")
+    quality = pd.read_csv(TABLES / "data_quality_summary.csv")
 
-    require_columns(segments, "customer_segments.csv", ["segment"])
-    require_columns(
-        recs,
-        "segment_offer_recommendations.csv",
-        ["segment", "recommended_offer", "expected_absolute_lift"],
-    )
-    require_columns(
-        uplift,
-        "offer_uplift_by_segment.csv",
-        ["segment", "offer_type", "absolute_uplift"],
-    )
+    require_columns(segments, "customer_segments.csv", ["segment", "customer_id"])
     require_columns(
         profile,
         "segment_profile_summary.csv",
         ["segment", "cash_ratio_mean", "active_days_6m_mean"],
     )
+    require_columns(
+        evidence,
+        "offer_uplift_with_uncertainty.csv",
+        [
+            "segment",
+            "offer_type",
+            "n_treatment",
+            "n_control",
+            "treatment_conversion_rate",
+            "control_conversion_rate",
+            "absolute_uplift",
+            "ci_95_lower",
+            "ci_95_upper",
+            "evidence_label",
+        ],
+    )
+    require_columns(quality, "data_quality_summary.csv", ["metric", "value", "unit", "status"])
 
     n_customers = len(segments)
-    n_segments = segments["segment"].nunique()
-    best = uplift.sort_values("absolute_uplift", ascending=False).iloc[0]
-    best_segment = best["segment"]
-    best_offer = best["offer_type"]
+    n_segments = int(segments["segment"].nunique())
+    best = evidence.sort_values("absolute_uplift", ascending=False).iloc[0]
     best_lift = float(best["absolute_uplift"])
+    best_lower = float(best["ci_95_lower"])
+    best_upper = float(best["ci_95_upper"])
+    review_checks = int((quality["status"] != "PASS").sum())
 
     segment_size = (
         segments["segment"]
         .value_counts()
-        .rename_axis("segment")
-        .reset_index(name="customers")
+        .rename_axis("Segment")
+        .reset_index(name="Customers")
     )
-    segment_size["share"] = segment_size["customers"] / n_customers
-    segment_size["share"] = segment_size["share"].map(pct)
+    segment_size["Share"] = (segment_size["Customers"] / n_customers).map(pct)
 
     high_cash = profile.sort_values("cash_ratio_mean", ascending=False).iloc[0]
     low_activity = profile.sort_values("active_days_6m_mean", ascending=True).iloc[0]
 
-    rec_display = recs.sort_values("expected_absolute_lift", ascending=False)[
-        ["segment", "recommended_offer", "expected_absolute_lift"]
+    best_by_segment = (
+        evidence.sort_values("absolute_uplift", ascending=False)
+        .groupby("segment", as_index=False)
+        .head(1)
+        .copy()
+    )
+    best_display = best_by_segment[
+        [
+            "segment",
+            "offer_type",
+            "n_treatment",
+            "n_control",
+            "absolute_uplift",
+            "ci_95_lower",
+            "ci_95_upper",
+            "evidence_label",
+        ]
     ].copy()
-    rec_display["expected_absolute_lift"] = rec_display[
-        "expected_absolute_lift"
-    ].map(pp)
-    rec_display = rec_display.rename(
+    best_display["offer_type"] = best_display["offer_type"].str.replace("_", " ", regex=False)
+    best_display["absolute_uplift"] = best_display["absolute_uplift"].map(pp)
+    best_display["95% interval"] = best_by_segment.apply(
+        lambda row: f"{pp(float(row['ci_95_lower']))} to {pp(float(row['ci_95_upper']))}",
+        axis=1,
+    )
+    best_display = best_display.drop(columns=["ci_95_lower", "ci_95_upper"])
+    best_display = best_display.rename(
         columns={
             "segment": "Segment",
-            "recommended_offer": "Recommended route",
-            "expected_absolute_lift": "Simulated lift",
+            "offer_type": "Strongest route",
+            "n_treatment": "Treatment n",
+            "n_control": "Control n",
+            "absolute_uplift": "Simulated uplift",
+            "evidence_label": "Evidence reading",
         }
+    )
+
+    quality_display = quality.copy()
+    quality_display["metric"] = quality_display["metric"].str.replace("_", " ", regex=False)
+    quality_display["value"] = quality_display.apply(
+        lambda row: pct(float(row["value"])) if row["unit"] == "proportion" else f"{float(row['value']):,.0f}",
+        axis=1,
+    )
+    quality_display = quality_display[["metric", "value", "status"]].rename(
+        columns={"metric": "Check", "value": "Result", "status": "Status"}
     )
 
     fig_map = {
@@ -104,29 +145,28 @@ def main() -> None:
         "Offer uplift heatmap": FIGS / "04_offer_uplift_heatmap.png",
         "Treatment-control conversion": FIGS / "05_treatment_control_conversion.png",
         "Segment profile comparison": FIGS / "06_segment_profile_comparison.png",
+        "Offer uncertainty": FIGS / "07_recommended_offer_uncertainty.png",
     }
-
     missing_figures = [str(path) for path in fig_map.values() if not path.exists()]
     if missing_figures:
         raise FileNotFoundError("Missing figure files: " + ", ".join(missing_figures))
 
     css = """
-    :root{--ink:#111827;--muted:#4B5563;--line:#E5E7EB;--bg:#F8FAFC;--card:#FFFFFF;--blue:#0072B2;--orange:#D55E00;--green:#009E73;--purple:#CC79A7;--yellow:#E69F00}
-    body{margin:0;background:var(--bg);color:var(--ink);font-family:Arial,Helvetica,sans-serif;line-height:1.55}
-    header{background:#fff;border-bottom:1px solid var(--line);padding:34px 44px 24px}
-    main{max-width:1180px;margin:auto;padding:24px}
-    h1{margin:0 0 8px;font-size:30px} h2{margin:0 0 12px;font-size:22px} h3{margin:8px 0 8px;font-size:17px}
-    .subtitle{color:var(--muted);max-width:900px}
+    :root{--ink:#111827;--muted:#4B5563;--line:#E5E7EB;--bg:#F8FAFC;--card:#FFFFFF;--blue:#0072B2;--orange:#D55E00;--green:#009E73;--purple:#CC79A7}
+    *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:Arial,Helvetica,sans-serif;line-height:1.55}
+    header{background:#fff;border-bottom:1px solid var(--line);padding:34px 44px 24px}main{max-width:1180px;margin:auto;padding:24px}
+    h1{margin:0 0 8px;font-size:30px}h2{margin:0 0 12px;font-size:22px}h3{margin:8px 0;font-size:17px}.subtitle{color:var(--muted);max-width:920px}
     .card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:20px;margin:18px 0;box-shadow:0 1px 2px rgba(0,0,0,.035)}
-    .answer{border-left:6px solid var(--blue)} .safe{border-left:6px solid var(--green);background:#F0FDF4}.warn{border-left:6px solid var(--orange);background:#FFF7ED}
-    .grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}
-    .kpi{background:#fff;border:1px solid var(--line);border-radius:12px;padding:15px}.label{font-size:13px;color:var(--muted)}.value{font-size:25px;font-weight:700;margin-top:4px}
+    .answer{border-left:6px solid var(--blue)}.safe{border-left:6px solid var(--green);background:#F0FDF4}.warn{border-left:6px solid var(--orange);background:#FFF7ED}
+    .grid4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}
+    .kpi{background:#fff;border:1px solid var(--line);border-radius:12px;padding:15px}.label{font-size:13px;color:var(--muted)}.value{font-size:24px;font-weight:700;margin-top:4px}.subvalue{font-size:12px;color:var(--muted);margin-top:5px}
     .step{display:inline-block;background:#EFF6FF;color:#1D4ED8;border-radius:999px;padding:3px 9px;font-size:12px;font-weight:700;margin-bottom:8px}
-    figure{margin:0}.chart{width:100%;border:1px solid var(--line);border-radius:12px;background:white;padding:10px;box-sizing:border-box}.chart img{width:100%;display:block}
+    .flow{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.flow div{background:#F9FAFB;border:1px solid var(--line);border-radius:10px;padding:12px;font-size:13px}.flow b{display:block;margin-bottom:4px}
+    figure{margin:0}.chart{width:100%;border:1px solid var(--line);border-radius:12px;background:white;padding:10px}.chart img{width:100%;display:block}
     .explain{background:#F9FAFB;border:1px solid var(--line);border-radius:12px;padding:14px}.explain ul{margin:8px 0 0 20px;padding:0}.explain li{margin:5px 0}
-    .mini{width:100%;border-collapse:collapse;font-size:13px}.mini th,.mini td{border-bottom:1px solid var(--line);padding:7px;text-align:left}.mini th{background:#F9FAFB}
-    .pill{display:inline-block;border-radius:999px;padding:4px 9px;margin:3px;background:#EEF2FF;color:#3730A3;font-size:12px}.muted{color:var(--muted)}
-    @media(max-width:900px){.grid2,.grid3{grid-template-columns:1fr}header{padding:28px 22px}main{padding:16px}}
+    .mini{width:100%;border-collapse:collapse;font-size:12.5px}.mini th,.mini td{border-bottom:1px solid var(--line);padding:7px;text-align:left;vertical-align:top}.mini th{background:#F9FAFB;position:sticky;top:0}
+    .table-wrap{overflow-x:auto}.muted{color:var(--muted)}.good{color:#047857;font-weight:700}.review{color:#B45309;font-weight:700}
+    @media(max-width:900px){.grid2,.grid4,.flow{grid-template-columns:1fr}header{padding:28px 22px}main{padding:16px}}
     """
 
     html = f"""<!doctype html>
@@ -134,148 +174,121 @@ def main() -> None:
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Guided UKPI Analytics Dashboard</title>
+<title>UKPI Analytics — Evidence-led Dashboard</title>
 <style>{css}</style>
 </head>
 <body>
 <header>
   <h1>UKPI client segmentation and offer analytics</h1>
-  <p class="subtitle">Synthetic-data portfolio dashboard. Each section states the business question, the evidence, how to read the figure, and what the output should not be used for.</p>
+  <p class="subtitle">Synthetic-data portfolio dashboard. The page moves from the business question to the evidence, uncertainty, operational interpretation, and limits.</p>
 </header>
 <main>
   <section class="card answer">
     <span class="step">Answer first</span>
     <h2>One communication plan is not enough for the simulated investor book.</h2>
-    <p>The workflow creates <b>{n_segments}</b> interpretable customer segments from <b>{n_customers:,}</b> synthetic customers. The strongest simulated segment-offer result is <b>{pp(best_lift)}</b> for <b>{best_offer}</b> in <b>{best_segment}</b>.</p>
-    <p class="muted">The output supports service design and education routing. It does not recommend a fund, portfolio, risk level, or personal investment action.</p>
+    <p>The workflow separates <b>{n_customers:,}</b> synthetic customers into <b>{n_segments}</b> interpretable segments. The strongest simulated treatment-control result is <b>{pp(best_lift)}</b> for <b>{str(best['offer_type']).replace('_', ' ')}</b> in <b>{best['segment']}</b>.</p>
+    <p class="muted">Its approximate 95% interval is <b>{pp(best_lower)} to {pp(best_upper)}</b>. This is a synthetic experiment result, not evidence of real customer impact.</p>
   </section>
 
-  <section class="grid3">
-    <div class="kpi"><div class="label">Synthetic customers</div><div class="value">{n_customers:,}</div></div>
-    <div class="kpi"><div class="label">Interpretable segments</div><div class="value">{n_segments}</div></div>
-    <div class="kpi"><div class="label">Best simulated lift</div><div class="value">{pp(best_lift)}</div></div>
+  <section class="grid4">
+    <div class="kpi"><div class="label">Synthetic customers</div><div class="value">{n_customers:,}</div><div class="subvalue">One customer-level feature mart</div></div>
+    <div class="kpi"><div class="label">Segments</div><div class="value">{n_segments}</div><div class="subvalue">Interpretable service groups</div></div>
+    <div class="kpi"><div class="label">Segment-offer tests</div><div class="value">{len(evidence)}</div><div class="subvalue">Treatment-control comparisons</div></div>
+    <div class="kpi"><div class="label">Quality checks needing review</div><div class="value">{review_checks}</div><div class="subvalue">Out of {len(quality)} automated checks</div></div>
   </section>
 
   <section class="card">
-    <span class="step">1</span>
-    <h2>Business question: how many customers are in each segment?</h2>
+    <span class="step">Decision path</span>
+    <div class="flow">
+      <div><b>1. Who is in the book?</b>Size and profile the customer segments.</div>
+      <div><b>2. What differs?</b>Compare cash, activity, account ownership, and contribution behaviour.</div>
+      <div><b>3. What appears to work?</b>Estimate treatment-control uplift by segment and route.</div>
+      <div><b>4. How certain is it?</b>Show sample sizes, uncertainty intervals, quality checks, and limits.</div>
+    </div>
+  </section>
+
+  <section class="card">
+    <span class="step">1</span><h2>How many customers are in each segment?</h2>
     <div class="grid2">
       <figure class="chart"><img alt="Segment size chart" src="{img_data_uri(fig_map['Segment size'])}"></figure>
-      <div class="explain">
-        <h3>How to read it</h3>
-        <ul>
-          <li>Start with segment size before interpreting offer performance.</li>
-          <li>A small segment can show high lift but still have limited operational impact.</li>
-          <li>A large segment with moderate lift may be more useful for a scaled campaign.</li>
-        </ul>
-        <h3>Current snapshot</h3>
-        {top_rows_html(segment_size, 5)}
-      </div>
+      <div class="explain"><h3>Read this first</h3><ul><li>Segment size sets the operational scale.</li><li>High uplift in a small group may have less total impact than moderate uplift in a large group.</li><li>The table gives both count and share.</li></ul><div class="table-wrap">{table_html(segment_size)}</div></div>
     </div>
   </section>
 
   <section class="card">
-    <span class="step">2</span>
-    <h2>Business question: which segments have different needs?</h2>
+    <span class="step">2</span><h2>What makes the segments meaningfully different?</h2>
     <div class="grid2">
       <figure class="chart"><img alt="Segment need map" src="{img_data_uri(fig_map['Need map'])}"></figure>
-      <div class="explain">
-        <h3>How to read it</h3>
-        <ul>
-          <li>The x-axis separates more and less digitally active customers.</li>
-          <li>The y-axis separates higher and lower cash-ratio groups.</li>
-          <li>This makes the segment story visible before looking at campaigns.</li>
-        </ul>
-        <h3>Current snapshot</h3>
-        <p><b>Highest cash-ratio segment:</b> {high_cash['segment']} ({pct(float(high_cash['cash_ratio_mean']))}).</p>
-        <p><b>Lowest digital-activity segment:</b> {low_activity['segment']} ({float(low_activity['active_days_6m_mean']):.1f} active days over six months).</p>
-      </div>
+      <div class="explain"><h3>Current interpretation</h3><p><b>Highest cash-ratio segment:</b> {high_cash['segment']} ({pct(float(high_cash['cash_ratio_mean']))}).</p><p><b>Lowest digital-activity segment:</b> {low_activity['segment']} ({float(low_activity['active_days_6m_mean']):.1f} active days over six months).</p><ul><li>Bubble size reflects mean AUM.</li><li>Position reflects service needs, not suitability or risk advice.</li></ul></div>
     </div>
   </section>
 
   <section class="card">
-    <span class="step">3</span>
-    <h2>Business question: which communication route appears strongest by segment?</h2>
+    <span class="step">3</span><h2>Which communication route appears strongest by segment?</h2>
     <div class="grid2">
       <figure class="chart"><img alt="Recommended offer lift" src="{img_data_uri(fig_map['Recommended offer lift'])}"></figure>
-      <div class="explain">
-        <h3>How to read it</h3>
-        <ul>
-          <li>Each bar is the strongest simulated offer route for one segment.</li>
-          <li>The output is segment-level evidence, not a personal recommendation.</li>
-          <li>This is the chart I would show first when discussing campaign prioritisation.</li>
-        </ul>
-        {top_rows_html(rec_display, 5)}
-      </div>
+      <div class="explain"><h3>What this chart can support</h3><ul><li>Prioritising which education or reminder route to test further.</li><li>Comparing segment-level response rather than applying one message to everyone.</li><li>It cannot support a personal product recommendation.</li></ul></div>
     </div>
   </section>
 
   <section class="card">
-    <span class="step">4</span>
-    <h2>Business question: why not use the same offer for everyone?</h2>
+    <span class="step">4</span><h2>How uncertain are the apparent best results?</h2>
+    <div class="grid2">
+      <figure class="chart"><img alt="Offer uplift uncertainty" src="{img_data_uri(fig_map['Offer uncertainty'])}"></figure>
+      <div class="explain"><h3>How to read it</h3><ul><li>Dots are simulated uplift estimates.</li><li>Horizontal intervals show approximate 95% uncertainty.</li><li>Intervals crossing zero should be treated as directional rather than conclusive.</li><li>Each label also shows the combined treatment and control sample size.</li></ul></div>
+    </div>
+    <div class="table-wrap">{table_html(best_display)}</div>
+  </section>
+
+  <section class="card">
+    <span class="step">5</span><h2>Why not use the same route for every segment?</h2>
     <div class="grid2">
       <figure class="chart"><img alt="Offer uplift heatmap" src="{img_data_uri(fig_map['Offer uplift heatmap'])}"></figure>
-      <div class="explain">
-        <h3>How to read it</h3>
-        <ul>
-          <li>Compare rows to see that segments respond differently.</li>
-          <li>Compare columns to see that one offer does not dominate everywhere.</li>
-          <li>This supports targeted communication rather than one-size-fits-all messaging.</li>
-        </ul>
-      </div>
+      <div class="explain"><h3>Interpretation</h3><ul><li>Rows show that segment response patterns differ.</li><li>Columns show that no route dominates in every group.</li><li>The heatmap is a prioritisation aid; the uncertainty view above is needed before making stronger claims.</li></ul></div>
     </div>
   </section>
 
   <section class="card">
-    <span class="step">5</span>
-    <h2>Business question: is the uplift coming from a treatment-control comparison?</h2>
+    <span class="step">6</span><h2>Is the result based on a visible treatment-control comparison?</h2>
     <div class="grid2">
       <figure class="chart"><img alt="Treatment-control conversion" src="{img_data_uri(fig_map['Treatment-control conversion'])}"></figure>
-      <div class="explain">
-        <h3>How to read it</h3>
-        <ul>
-          <li>The chart separates treatment and control conversion rates.</li>
-          <li>It makes the simulated experiment logic visible to a non-technical reviewer.</li>
-          <li>With real data, I would add confidence intervals and check assignment bias.</li>
-        </ul>
-      </div>
+      <div class="explain"><h3>Why this matters</h3><ul><li>It separates baseline conversion from the treatment result.</li><li>The evidence table records treatment and control counts, conversions, rates, uplift, and intervals.</li><li>With real data, further checks would include randomisation integrity, pre-period balance, and multiple-testing control.</li></ul></div>
     </div>
   </section>
 
   <section class="card">
-    <span class="step">6</span>
-    <h2>Business question: what makes the segments different?</h2>
+    <span class="step">7</span><h2>Do the segment names match measurable profiles?</h2>
     <div class="grid2">
       <figure class="chart"><img alt="Segment profile comparison" src="{img_data_uri(fig_map['Segment profile comparison'])}"></figure>
-      <div class="explain">
-        <h3>How to read it</h3>
-        <ul>
-          <li>This chart links the segment labels back to measurable features.</li>
-          <li>It helps explain why a segment is described as cash-heavy, engaged, or dormant.</li>
-          <li>It checks that labels match the data rather than merely sounding plausible.</li>
-        </ul>
-      </div>
+      <div class="explain"><h3>Interpretation</h3><ul><li>Profile measures anchor the segment names in observed synthetic features.</li><li>This guards against labels that sound plausible but are not supported by the data.</li><li>A production version would also test stability across time and alternative clustering seeds.</li></ul></div>
     </div>
+  </section>
+
+  <section class="card">
+    <span class="step">Automated checks</span><h2>Was the generated dataset and experiment output internally consistent?</h2>
+    <p class="muted">These checks run from code and are saved to <code>outputs/tables/data_quality_summary.csv</code>.</p>
+    <div class="table-wrap">{table_html(quality_display)}</div>
   </section>
 
   <section class="card safe">
-    <span class="step">Boundary</span>
-    <h2>What I would and would not claim</h2>
-    <p><b>I would claim:</b> the workflow shows how customer-level features, segmentation, offer lift analysis, SQL checks, and a dashboard can support service analytics.</p>
-    <p><b>I would not claim:</b> that this is real customer behaviour, regulated financial advice, or a production campaign decisioning system.</p>
+    <span class="step">Boundary</span><h2>What I would and would not claim</h2>
+    <p><b>I would claim:</b> the repository demonstrates a reproducible workflow connecting synthetic customer data, segmentation, campaign comparisons, uncertainty, SQL checks, automated validation, and stakeholder reporting.</p>
+    <p><b>I would not claim:</b> that the simulated uplift represents real customer behaviour, that the segments establish suitability, or that the dashboard gives regulated financial advice.</p>
   </section>
 
   <section class="card warn">
-    <span class="step">Next production checks</span>
-    <h2>What I would add with real data</h2>
-    <p><span class="pill">data quality checks</span><span class="pill">confidence intervals</span><span class="pill">segment stability</span><span class="pill">assignment-bias checks</span><span class="pill">dashboard freshness checks</span></p>
+    <span class="step">Production upgrades</span><h2>What I would add with real data</h2>
+    <p>Time-based segment stability, pre-treatment balance, confidence intervals with robust experimental design, multiple-testing adjustment, dashboard freshness monitoring, privacy controls, and documented human approval before campaign use.</p>
   </section>
 </main>
 </body>
 </html>
 """
-    DASHBOARD_PATH.write_text(html, encoding="utf-8")
-    print(f"Wrote {DASHBOARD_PATH}")
+
+    GUIDED_PATH.write_text(html, encoding="utf-8")
+    INDEX_PATH.write_text(html, encoding="utf-8")
+    print(f"Wrote {GUIDED_PATH}")
+    print(f"Wrote {INDEX_PATH}")
 
 
 if __name__ == "__main__":

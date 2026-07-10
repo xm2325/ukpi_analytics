@@ -1,35 +1,36 @@
 # UKPI Client Segmentation and Offer Analytics
 
-I built this as a small portfolio project for a UK retail investment platform data analyst role. The point is simple: take customer, account, holding, transaction, web/app, and campaign data, build one customer-level view, then use it for segmentation, offer analysis, and dashboard reporting.
+This repository contains a synthetic-data analytics workflow for a UK retail-investment platform use case. It turns customer, account, holding, transaction, web/app, and campaign data into a customer-level feature mart, interpretable segments, treatment-control evidence, SQL outputs, and stakeholder-facing dashboards.
 
 The data are synthetic. They are not Vanguard data and not real customer data.
 
-## What I wanted to check
-
-A UK personal investor platform should not treat all customers as one group. Some customers hold a lot of cash, some are building pensions, some invest monthly, some are active online, and some barely use the platform. I wanted the project to answer four practical questions:
+## Questions the project answers
 
 1. What customer groups appear in the data?
-2. Which education or reminder route fits each group better?
-3. What should a stakeholder dashboard show first?
-4. How can the analysis support service design without becoming personal investment advice?
+2. Why was a five-segment solution retained?
+3. Which education or reminder route appears strongest for each segment?
+4. How uncertain are the apparent treatment-control differences?
+5. Did the generated data and outputs pass basic quality checks?
+6. How can the analysis support service design without becoming personal investment advice?
 
 ## Project flow
 
 ```text
-raw synthetic tables
-  customers, accounts, holdings, transactions, web_events, campaign_events
+synthetic customer and campaign data
         ↓
-customer feature mart
-  one row per customer
+customer-level feature mart
         ↓
-segmentation and offer analysis
-  five customer groups + treatment/control offer lift
+segmentation
+  k=2–8 diagnostics + multi-seed stability checks
         ↓
-chart-first dashboard
-  business answer, figures, customer selector, safe wording
+offer analysis
+  treatment/control rates + uplift + 95% intervals + sample sizes
         ↓
-guided dashboard
-  business question, chart, how to read it, and what not to claim
+validation
+  data-quality checks + SQL questions + generated snapshot
+        ↓
+evidence-led HTML dashboard
+  answer first → evidence → uncertainty → interpretation → limits
 ```
 
 ## Run locally
@@ -37,32 +38,46 @@ guided dashboard
 ```bash
 pip install -r requirements.txt
 python ukpi_analytics_demo.py
+python scripts/evaluate_segmentation.py
+python scripts/build_evidence_layer.py
 python scripts/run_sql_checks.py
 python scripts/export_generated_snapshot.py
 python scripts/build_guided_dashboard.py
 ```
 
-The compact GitHub version recreates the outputs from scratch:
+## Main generated outputs
 
 ```text
+docs/index.html                              default evidence-led dashboard
+docs/guided_dashboard.html                   same evidence-led dashboard under an explicit name
+docs/ukpi_dashboard.html                     original interactive customer dashboard
+
 outputs/figures/01_segment_size_journal_palette.png
 outputs/figures/02_segment_need_map.png
 outputs/figures/03_recommended_offer_lift.png
 outputs/figures/04_offer_uplift_heatmap.png
 outputs/figures/05_treatment_control_conversion.png
 outputs/figures/06_segment_profile_comparison.png
-outputs/ukpi_dashboard.html
-outputs/customer_dashboard.html
-docs/ukpi_dashboard.html
-docs/guided_dashboard.html
+outputs/figures/07_recommended_offer_uncertainty.png
+outputs/figures/08_cluster_count_diagnostic.png
+
+outputs/tables/offer_uplift_with_uncertainty.csv
+outputs/tables/data_quality_summary.csv
+outputs/tables/cluster_diagnostics.csv
+outputs/tables/segment_stability.csv
+outputs/tables/sql_checks/*.csv
+
 reports/analysis_report.md
+reports/evidence_report.md
+reports/segmentation_diagnostics.md
 reports/sql_check_report.md
+
 data/generated_snapshot/
 ```
 
-## Main result
+## Current synthetic result
 
-The synthetic book separates into five customer groups:
+The generated customer book contains 2,500 customers and is presented as five interpretable groups:
 
 - high-value engaged investors;
 - cash-heavy cautious investors;
@@ -70,24 +85,27 @@ The synthetic book separates into five customer groups:
 - pension builders approaching retirement;
 - low-engagement or dormant investors.
 
-The recommended action is not to recommend products. The safer action is to route customers to neutral education, ISA or SIPP reminders, and service information based on segment-level evidence.
+The strongest simulated treatment-control difference is reported together with treatment and control sample sizes and an approximate 95% interval. The dashboard distinguishes an estimated signal from evidence that remains directional or uncertain.
 
 ## Repository map
 
 ```text
-ukpi_analytics_demo.py          main Python workflow
-scripts/run_sql_checks.py       loads generated CSV outputs into SQLite and runs the SQL checks
-scripts/export_generated_snapshot.py
-                                copies one generated run into data/generated_snapshot
-scripts/build_guided_dashboard.py
-                                builds a dashboard with chart-by-chart interpretation
-sql/ad_hoc_business_questions.sql
-                                stakeholder-style SQL questions
-docs/project_story.md           short project notes
-docs/data_dictionary.md         field meanings
-docs/known_limits.md            things I would not claim from this demo
+ukpi_analytics_demo.py               synthetic data, segmentation, campaign simulation, base figures
+scripts/evaluate_segmentation.py     k diagnostics and multi-seed adjusted Rand stability
+scripts/build_evidence_layer.py      uncertainty, sample sizes, quality checks, evidence figure
+scripts/run_sql_checks.py            SQLite execution of stakeholder-style SQL questions
+scripts/export_generated_snapshot.py copies a frozen generated run into the repository
+scripts/build_guided_dashboard.py    builds the evidence-led default dashboard
+sql/ad_hoc_business_questions.sql    reusable business-facing SQL queries
+docs/project_story.md                project rationale
+docs/data_dictionary.md              generated field definitions
+docs/known_limits.md                 claims intentionally excluded from the demo
 ```
 
-## Safety note
+## Reproducibility
 
-This project does not recommend a fund, portfolio, risk level, or personal investment action. It is a service analytics and dashboard project using synthetic data.
+GitHub Actions regenerates the synthetic data, figures, tables, reports, SQL results, and dashboards. It then commits a frozen generated snapshot back to the repository. The workflow now fails visibly if the generated commit cannot be pushed, rather than silently leaving an old HTML file in the repository.
+
+## Safety boundary
+
+This project does not recommend a fund, portfolio, risk level, or personal investment action. It demonstrates service analytics, experimental reporting, and dashboard design using synthetic data.

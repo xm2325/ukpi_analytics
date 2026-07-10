@@ -27,6 +27,9 @@ segmentation and offer analysis
         ↓
 chart-first dashboard
   business answer, figures, customer selector, safe wording
+        ↓
+guided dashboard
+  business question, chart, how to read it, and what not to claim
 ```
 
 ## Run locally
@@ -36,6 +39,7 @@ pip install -r requirements.txt
 python ukpi_analytics_demo.py
 python scripts/run_sql_checks.py
 python scripts/export_generated_snapshot.py
+python scripts/build_guided_dashboard.py
 ```
 
 The compact GitHub version recreates the outputs from scratch:
@@ -49,7 +53,8 @@ outputs/figures/05_treatment_control_conversion.png
 outputs/figures/06_segment_profile_comparison.png
 outputs/ukpi_dashboard.html
 outputs/customer_dashboard.html
-docs/index.html
+docs/ukpi_dashboard.html
+docs/guided_dashboard.html
 reports/analysis_report.md
 reports/sql_check_report.md
 data/generated_snapshot/
@@ -74,6 +79,8 @@ ukpi_analytics_demo.py          main Python workflow
 scripts/run_sql_checks.py       loads generated CSV outputs into SQLite and runs the SQL checks
 scripts/export_generated_snapshot.py
                                 copies one generated run into data/generated_snapshot
+scripts/build_guided_dashboard.py
+                                builds a dashboard with chart-by-chart interpretation
 sql/ad_hoc_business_questions.sql
                                 stakeholder-style SQL questions
 docs/project_story.md           short project notes

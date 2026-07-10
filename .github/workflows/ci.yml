@@ -5,44 +5,59 @@ on:
   workflow_dispatch:
 permissions:
   contents: write
+concurrency:
+  group: ukpi-ci-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   run-demo:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
       - name: Install dependencies
         run: pip install -r requirements.txt
-      - name: Check project notes
+      - name: Check project files
         run: |
           test -f docs/project_story.md
           test -f docs/data_dictionary.md
           test -f docs/known_limits.md
           test -f sql/ad_hoc_business_questions.sql
-      - name: Run demo
+          test -f scripts/build_evidence_layer.py
+          test -f scripts/build_guided_dashboard.py
+      - name: Run synthetic analytics demo
         run: python ukpi_analytics_demo.py
       - name: Prepare standard dashboard file
         run: |
           mkdir -p docs
           cp outputs/ukpi_dashboard.html docs/ukpi_dashboard.html
+      - name: Build uncertainty and data-quality evidence
+        run: python scripts/build_evidence_layer.py
       - name: Run SQL checks against generated synthetic outputs
         run: python scripts/run_sql_checks.py
       - name: Export generated snapshot into repository folder
         run: python scripts/export_generated_snapshot.py
-      - name: Build guided dashboard
+      - name: Build evidence-led dashboard and default page
         run: python scripts/build_guided_dashboard.py
-      - name: Check outputs and stale-blue prevention
+      - name: Check generated evidence and dashboards
         run: |
           test -f outputs/tables/segment_profile_summary.csv
           test -f outputs/tables/offer_uplift_by_segment.csv
           test -f outputs/tables/segment_offer_recommendations.csv
+          test -f outputs/tables/offer_uplift_with_uncertainty.csv
+          test -f outputs/tables/data_quality_summary.csv
           test -d outputs/tables/sql_checks
           test $(find outputs/tables/sql_checks -name '*.csv' | wc -l) -ge 6
+          test -f reports/analysis_report.md
           test -f reports/sql_check_report.md
+          test -f reports/evidence_report.md
           test -f data/generated_snapshot/customer_segments.csv
           test -f data/generated_snapshot/campaign_events_with_segments.csv
+          test -f data/generated_snapshot/offer_uplift_with_uncertainty.csv
+          test -f data/generated_snapshot/data_quality_summary.csv
           test -f data/generated_snapshot/snapshot_manifest.csv
           test $(find data/generated_snapshot/sql_checks -name '*.csv' | wc -l) -ge 6
           test -f outputs/figures/01_segment_size_journal_palette.png
@@ -51,32 +66,34 @@ jobs:
           test -f outputs/figures/04_offer_uplift_heatmap.png
           test -f outputs/figures/05_treatment_control_conversion.png
           test -f outputs/figures/06_segment_profile_comparison.png
+          test -f outputs/figures/07_recommended_offer_uncertainty.png
           test ! -f outputs/figures/01_segment_size.png
           test -f outputs/ukpi_dashboard.html
           test -f outputs/customer_dashboard.html
           test -f docs/ukpi_dashboard.html
           test -f docs/guided_dashboard.html
-          test -f reports/analysis_report.md
-          grep -q "journal-palette" reports/analysis_report.md
-          grep -q "#D55E00" docs/ukpi_dashboard.html
-          grep -q "#009E73" docs/ukpi_dashboard.html
-          grep -q "#CC79A7" docs/ukpi_dashboard.html
-          grep -q "How to read it" docs/guided_dashboard.html
-          grep -q "What I would and would not claim" docs/guided_dashboard.html
-      - name: Commit generated snapshot and dashboard
+          test -f docs/index.html
+          grep -q "95% interval" docs/guided_dashboard.html
+          grep -q "Automated checks" docs/guided_dashboard.html
+          grep -q "What I would and would not claim" docs/index.html
+      - name: Commit generated snapshot and dashboards
         if: github.event_name != 'pull_request'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data/generated_snapshot outputs reports docs/ukpi_dashboard.html docs/guided_dashboard.html
-          git diff --cached --quiet || git commit -m "Update generated UKPI snapshot and guided dashboard [skip ci]"
-          git push || true
+          git add data/generated_snapshot outputs reports docs/ukpi_dashboard.html docs/guided_dashboard.html docs/index.html
+          if ! git diff --cached --quiet; then
+            git commit -m "Update generated UKPI evidence and dashboards [skip ci]"
+            git pull --rebase origin main
+            git push origin HEAD:main
+          fi
       - name: Upload generated dashboard bundle
         uses: actions/upload-artifact@v4
         with:
           name: ukpi-generated-dashboard-and-sql-results
           path: |
             data/generated_snapshot/**
+            docs/index.html
             docs/ukpi_dashboard.html
             docs/guided_dashboard.html
             outputs/ukpi_dashboard.html

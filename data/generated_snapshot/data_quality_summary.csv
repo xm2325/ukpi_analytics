@@ -1,0 +1,12 @@
+metric,value,unit,status
+customer_rows,2500.0,count,PASS
+unique_customer_ids,2500.0,count,PASS
+duplicate_customer_ids,0.0,count,PASS
+missing_customer_cells,0.0,count,PASS
+cash_ratio_out_of_range,0.0,count,PASS
+negative_aum_rows,0.0,count,PASS
+campaign_rows,5015.0,count,PASS
+duplicate_customer_offer_rows,0.0,count,PASS
+treatment_assignment_share,0.5122632103688933,proportion,PASS
+minimum_treatment_or_control_group,91.0,count,REVIEW
+segment_offer_cells,20.0,count,PASS
